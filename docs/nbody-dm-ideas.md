@@ -4,7 +4,7 @@ Sharp, falsifiable tests runnable in the existing rig. **Kill criteria are locke
 BEFORE running** (pre-registration): if a test hits its kill line, the idea is dropped,
 recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
 
-- Matched-pair, speed-preserving velocity rotations (positions/KE/Q≈1.02 fixed).
+- Matched-pair, speed-preserving velocity rotations (positions fixed; KE/Q to O(1e-4)).
 - The `f_peri` handle (fraction with pericenter < r_c) — validated causal knob on central mass.
 - Three coring engines in one rig: orbit-reshaping, SIDM (`sidm.py`), feedback (`feedback.py`).
 - Collisionality law θ(N)=θ_∞+b·lnN/N; merger virial-vs-escape lead/lag.
@@ -51,7 +51,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   tracers γ≈1.96 cuspier, tangential γ≈1.72 flatter). Real, non-negligible observer-dependence
   (= the mass-anisotropy degeneracy that limits dwarf-DM measurements), but a **modest ~0.24
   systematic, NOT a cusp↔core flip** — the strong "core-cusp is an observer artifact" is an
-  overclaim. Script: `observer_gamma.py`.
+  overclaim. Script: `dmlab run observer_gamma`.
 
 - **#2 — DONE (survives kill, but only co-movement shown).** SIDM (σ/m=40, N=5000, 600
   steps) does **NOT** core at fixed f_peri: as γ drops 1.62(CDM)→1.25(SIDM), f_peri(<0.05)
@@ -61,7 +61,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   the orbit handle** (lower f_peri ⇒ de-concentrated). **BUT** this is *co-movement, not
   mediation*: it does not prove f_peri *causes* the coring vs. being a correlated by-product.
   The strong "universal handle" claim needs the collapse test — do orbit + SIDM + feedback all
-  fall on ONE Δγ-vs-Δf_peri curve? That's the honest next step. Script: `peri_handle.py`.
+  fall on ONE Δγ-vs-Δf_peri curve? That's the honest next step. Script: `dmlab run fingerprints`.
 
 - **#2 collapse test — DONE, universal handle FALSIFIED (this becomes result #5).** Put all three
   engines on the Δγ-vs-Δf_peri plane (orbit interventions trace the ground-truth handle curve).
@@ -78,15 +78,15 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   Δγ/Δf_peri signature, not just inner slope). SIDM/feedback carry coring physics invisible to a
   pericenter-only description — ties to the reinterpretation program (velocity-space info a coarse
   observer misses). Also corrects the earlier #2 "survives" read: SIDM's f_peri shift is real but far
-  too small to *mediate* its coring. Scripts: `collapse_test.py`, fig `outputs/figures/collapse_test.png`.
+  too small to *mediate* its coring. Scripts: `dmlab run fingerprints`, fig `outputs/figures/collapse_test.png`.
 
-- **B5 — DONE, PASS (`shape_observer.py`).** Observer-dependent SHAPE confirmed and large. Drove a
+- **B5 — DONE, PASS (`dmlab run shape_observer`).** Observer-dependent SHAPE confirmed and large. Drove a
   radial-orbit-unstable NFW (r_a=0.10) triaxial (global c/a 0.98→0.55 over 1500 steps), then split by
   orbit type (labels assigned at t=0 while spherical): radial tracers c/a=0.48 (elongated bar),
   tangential tracers c/a=0.92 (nearly round), **Δ(c/a)=−0.44** (~9× the kill). Generalizes the
   observer-dependence from density (orig-#1 γ) to geometry. Honest: expected given ROI physics (radial
   orbits ARE the bar) — a strong confirmation-with-mechanism, not a shock; tangential subset small (5%).
-- **B1 — DONE, non-local NOT supported (`causal_locus.py`).** Rigorous rerun (per-shell matched sham +
+- **B1 — DONE, non-local NOT supported (`dmlab run causal_locus`).** Rigorous rerun (per-shell matched sham +
   3 IC seeds) KILLED the exciting first-pass result. Δγ/1000 by shell: [0.05,0.10) −0.06±0.29 (the
   pass-1 "flattening sign-flip" was NOISE — 301 particles), [0.10,0.20) +0.27±0.07, [0.20,0.40)
   +0.28±0.08, [0.40,0.80) **+0.06±0.06 (consistent with 0)**. Causal control of γ is concentrated at
@@ -94,7 +94,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   local-to-r_s, NOT non-local.** Pass-1's "non-local + sign flip" was an unmatched-control + single-
   realization artifact — a clean double-check catch (would have reported new physics and been wrong).
 
-- **B3 — DONE (`loschmidt_div.py`, `loschmidt_scan.py`).** Perturbed cusp is CHAOTIC (two-trajectory
+- **B3 — DONE (`dmlab run lyapunov`, `dmlab run lyapunov`).** Perturbed cusp is CHAOTIC (two-trajectory
   divergence, clean exponential, R²=0.99). λ(N)=0.549/0.462/0.398 at N=2000/4000/8000 → θ(N)-style fit
   λ=0.340+55.7·(lnN/N), R²=0.994 → **λ_∞=0.34>0: mean-field chaos SURVIVES the collisionless limit**
   (t_lyap≈11.8 t_cross), with a granular *enhancement* at finite N (not a two-body artifact — pure
@@ -105,7 +105,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   a broken δ=0.1>eps column; (3) N=16000 direct run too slow → lean λ(N) scan; (4) script's crude
   "GRANULAR→vanishes" verdict WRONG — proper N→∞ extrapolation shows λ_∞>0 (mean-field). ODD reading:
   the arrow is real and observer-resolution-relative. Ties to the θ(N) collisionality program.
-- **B4 — DONE (`mond_response.py`).** MOND (Milgrom algebraic, a0=1) vs Newtonian causal response to
+- **B4 — DONE (`dmlab run force_law_response`).** MOND (Milgrom algebraic, a0=1) vs Newtonian causal response to
   radialize/tangentialize (each vs its own sham): Newton +0.529/−0.395, MOND +0.443/−0.471. Response
   magnitudes differ only ~0.08 (<0.10 kill) → **NOT a clean discriminator at this strength.** Two real
   hints: MOND baseline cusp steeper (γ 1.69 vs 1.51, expected — MOND boosts gravity), and the response
@@ -113,7 +113,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   result. Caveats: algebraic (QUMOND-lite) MOND + matched-pair response on a shared IC (not MOND-native
   equilibrium). Worth a seeded follow-up before any claim.
 
-- **K1 — DONE, BREAKS as predicted (`kerr_losscone.py`).** The L-null intervention (reorient orbital
+- **K1 — DONE, BREAKS as predicted (`dmlab run kerr_losscone`).** The L-null intervention (reorient orbital
   plane at FIXED E, |L|, pericenter) is EXACTLY null for a spherical/Schwarzschild sink (capture
   asymmetry retro−pro = 0.0000 at χ=0) but becomes causal for a Kerr sink, with a clean monotonic
   dose-response in spin: A(χ) = 0.044, 0.093, 0.159, **0.208** at χ=0.3, 0.6, 0.9, 0.998 (retrograde
@@ -124,7 +124,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   built from textbook Kerr geodesics, NOT the unverified arXiv:2606.18050. Extends the predictive≠causal
   thread into a GR boundary.
 
-- **K5 — DONE, PASS (`stream_shape.py`).** In a fixed triaxial log potential (1:0.9:0.7), each orbit
+- **K5 — DONE, PASS (`dmlab run stream_shape`).** In a fixed triaxial log potential (1:0.9:0.7), each orbit
   family's inferred in-plane flattening b/a reports the plane IT samples, not the halo's 3D shape:
   x-y tube→0.88(≈qy 0.90), y-z tube→0.76, box→0.71(≈qz 0.70), outer→0.90(rounder). Spread 0.18 → a
   single stream infers its orbit-class-biased shape. **Double-check catch:** my first headline metric
@@ -132,7 +132,7 @@ recorded honestly. Ordered cheapest-to-kill first. Unique instruments available:
   shape); the clean estimator is b/a (the in-plane ratio). Confirms the claim for the right reason.
   Honesty: footprint proxy for full stream-track fitting; qualitative family-dependence is what's shown.
 
-- **K4 — DONE, NULL (`superfluid_response.py`); RETROACTIVELY KILLS B4's hint.** Three force laws
+- **K4 — DONE, NULL (`dmlab run force_law_response`); RETROACTIVELY KILLS B4's hint.** Three force laws
   (Newton / MOND-global / superfluid-gated MOND inside r_sf=0.5), same radialize/tangentialize/sham
   battery, **3 IC seeds for error bars** (which B4 lacked). Asymmetry A=|radialize|−|tangential|:
   Newton +0.171±0.158, MOND-global −0.014±0.187, superfluid +0.139±0.207. **Every A is consistent with

@@ -1,3 +1,9 @@
+> **STATUS: FUTURE WORK — NOT THE CURRENT PLAN.**
+> The canonical plan is [`PLAN_papers_and_scaleup.md`](PLAN_papers_and_scaleup.md).
+> This paper's spine (R3 / figure F3, the Δf_peri–Δγ fingerprints) is **under-seeded**: one
+> realization per point, no error bars. Do not submit or frame around it until the seeded
+> battery (`dmlab run fingerprints`) is complete.
+
 # THE PAPER — one paper, planned from scratch
 
 ## Title
@@ -27,7 +33,7 @@ with identical γ are shown to be distinguishable by the causal route that produ
 |---|--------|--------|------|
 | R1 | **Accessibility null:** orbit rearrangement alone cannot core an NFW cusp — ±1–2% central-mass modulation, bidirectional, dose-ordered, sham-null, surviving N→∞ extrapolation (θ_∞ = +12.7±0.7 / −9.7±0.6 ×10⁻³) | **DONE** | fleet `cc1` |
 | R2 | **The handle:** within the intervention class f_peri is necessary *and* sufficient for the central-mass response (sufficiency battery, multivariate transfer, pericenter-preserving null ≤0.5%) | **DONE** | fleets `ft2`,`cc1` |
-| R3 | ★ **f_peri is NOT universal — the spine.** Three engines occupy distinct loci: orbit moves *along* the f_peri axis (slope≈1); **SIDM cores at ~fixed f_peri** (Δf_peri≈−0.03 vs Δγ≈−0.4, off the orbit curve by 1.4–6.9×); **feedback cores with wrong-sign f_peri** (raises it while γ falls) | **NEEDS SEEDS** | `collapse_test.py` (1 realization/point) |
+| R3 | ★ **f_peri is NOT universal — the spine.** Three engines occupy distinct loci: orbit moves *along* the f_peri axis (slope≈1); **SIDM cores at ~fixed f_peri** (Δf_peri≈−0.03 vs Δγ≈−0.4, off the orbit curve by 1.4–6.9×); **feedback cores with wrong-sign f_peri** (raises it while γ falls) | **NEEDS SEEDS** | `dmlab run fingerprints` (1 realization/point) |
 | R4 | **Why: the mechanism behind SIDM's fingerprint.** SIDM erases anisotropy *collisionally* — β retained 61% under pure gravity vs **5%** under scattering — at 50–200× the collapse rate. It therefore flattens γ by isotropising velocities **without draining low-pericenter orbits**, which is exactly the fixed-f_peri signature of R3 | **DONE** | `cal4`,`cal6` |
 | R5 | **Controls.** SIDM coring is gravothermal, not two-body relaxation: d(ln t_col)/d(ln N) = +0.01/−0.08/−0.06 at K=1.3/1.5/2.0 over N=2000→8000 while t_relax grows 3.4×. Sham floor is scatter not bias (0.2–1.6σ) | **DONE** | `cal6` |
 

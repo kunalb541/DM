@@ -55,7 +55,7 @@ attenuated, or reversed in 3D?*
 
 Every published anisotropic result varies β by changing the distribution function, which co-varies
 the density realization and virial state — **correlational**. We dial β by **speed-preserving
-velocity rotation at fixed positions, fixed KE, fixed virial ratio, fixed density profile** — a true
+velocity rotation at fixed positions, and KE / virial ratio fixed to O(1e-4), fixed density profile** — a true
 intervention with exact ground truth. That is the rig's monopoly.
 
 ## 2. Arms

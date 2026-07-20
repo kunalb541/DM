@@ -40,7 +40,7 @@ dark matter than a positions/isotropy-blind one — for the *same halo*.
 Walker & Peñarrubia) — *known physics*. What is new is not the degeneracy but the **ODD framing +
 measurement**: define an *observer-relative DM residual fraction* and show it is the same velocity-
 structure knob (β; and via #1 the orbit type) that drives the apparent core–cusp.
-**Discriminator + RESULT (`dm_residual.py`):** equilibrium Osipkov-Merritt NFW haloes, identical
+**Discriminator + RESULT (`dmlab run dm_residual`):** equilibrium Osipkov-Merritt NFW haloes, identical
 ρ(r)/M(<r), only β differs. A β-blind observer (isotropic spherical Jeans on the same ρ, σ_r)
 over-infers enclosed mass by:
 
@@ -64,7 +64,7 @@ not a claim about any specific galaxy. Figure: `outputs/figures/dm_residual.png`
 *chosen* resolution; different observers (different resolution scales) infer *different* DM — a "DM
 RG flow." Lineage: backreaction/timescape (arXiv:1012.0784); coarse-grained thermodynamics with
 observation-dependent quantities but observation-independent laws (PRResearch gcyn-18tv).
-**Non-circular operationalization (`dm_scaleflow.py`):** the naive "smooth the density" version is
+**Non-circular operationalization (`dmlab run scale_flow`):** the naive "smooth the density" version is
 the trivial-zero trap — smoothing *conserves* mass, no flow. Instead sweep the OBSERVER's radial
 resolution λ (the scale below which they can't resolve gradients) and run spherical Jeans on their
 λ-resolved kinematics. The Jeans mass depends on d ln(ρσ_r²)/d ln r; a λ-observer measures that
@@ -120,12 +120,12 @@ they establish the axis hierarchy: **velocity-access dominates, spatial-resoluti
 **Next teeth:** #1's intervention timescale test; #4's entropy-vs-baryon correlation.
 
 ## Results log
-- **#2 — DONE (`dm_residual.py`).** Observer-relative DM residual measured: β-blind Jeans over-infers
+- **#2 — DONE (`dmlab run dm_residual`).** Observer-relative DM residual measured: β-blind Jeans over-infers
   mass by +37% (β≈0.28) → +184% (β≈0.80); isotropic control −9%≈0. **Caught+fixed a real bug:**
   v1 injected anisotropy by instantaneously rotating velocities, which broke equilibrium — the
   built-in Jeans-check column exposed it (M_aware/M_true fell to 0.28). Equilibrium OM ICs fixed it
   (check holds ~0.90). Reframing of the *known* mass–anisotropy degeneracy, not new physics.
-- **#3 — DONE, WEAK (`dm_scaleflow.py`).** Non-circular scale-flow (sweep observer resolution λ, Jeans
+- **#3 — DONE, WEAK (`dmlab run scale_flow`).** Non-circular scale-flow (sweep observer resolution λ, Jeans
   on λ-resolved kinematics, fixed halo): real, monotonic, ~10% under-inference of inner DM as λ→r_s,
   concentrated at r≲r_s. **Double-check:** raw estimator gave noise-dominated sign-bouncing ~7%;
   smoothing ln P isolated the genuine curvature signal → clean ~10%. Magnitude ≪ #2 → the residual is
@@ -134,5 +134,5 @@ they establish the axis hierarchy: **velocity-access dominates, spatial-resoluti
 ## Notes / references
 Wolf et al. 2010 (M(<r_1/2) β-insensitive); Binney & Mamon 1982 (projected anisotropic Jeans);
 timescape arXiv:1012.0784; coarse-grained thermo PRResearch gcyn-18tv; Verlinde arXiv:1611.02269;
-Emergent DM arXiv:2511.09034. Ties to `observer_gamma.py` (#1, orbit-type γ) and the `f_peri`
+Emergent DM arXiv:2511.09034. Ties to `dmlab run observer_gamma` (#1, orbit-type γ) and the `f_peri`
 handle — same velocity-structure axis.

@@ -18,8 +18,17 @@ from __future__ import annotations
 import numpy as np
 
 
-def sidm_scatter(pos, vel, mass, dt, sigma_over_m, h, rng):
-    """One elastic-scattering sub-step (in place on a vel copy). Returns (vel, n_scatter)."""
+def sidm_scatter(pos, vel, mass, dt, sigma_over_m, h, rng, diag=None):
+    """One elastic-scattering sub-step (in place on a vel copy). Returns (vel, n_scatter).
+
+    If `diag` is a dict, records SAFETY diagnostics required to certify the Monte-Carlo:
+      P_max        largest single-pair scatter probability this step (must be << 1)
+      kappa        expected scatters per particle this step = dt/t_scat (K&S: <=0.02 for O(10%))
+      n_scatter    actual scatters executed
+      n_pairs      candidate pairs in the kernel
+      blocked_frac fraction of candidate pairs SKIPPED because a partner had already scattered
+                   -- this is the once-per-step saturation bias, which grows as kappa rises
+    """
     from scipy.spatial import cKDTree
     vel = vel.copy()
     if sigma_over_m <= 0:
@@ -32,13 +41,17 @@ def sidm_scatter(pos, vel, mass, dt, sigma_over_m, h, rng):
     rho = mass / Vh                             # density contributed by one partner in the kernel
     scattered = np.zeros(len(pos), bool)
     n_sc = 0
+    _pmax = 0.0; _psum = 0.0; _blocked = 0
     for idx in rng.permutation(len(pairs)):
         i, j = pairs[idx]
         if scattered[i] or scattered[j]:
+            _blocked += 1
             continue
         dv = vel[i] - vel[j]
         vrel = np.sqrt(dv @ dv)
         P = sigma_over_m * rho * vrel * dt
+        if P > _pmax: _pmax = P
+        _psum += P
         if rng.random() < P:
             vcm = 0.5 * (vel[i] + vel[j])
             n = rng.normal(size=3); n /= np.sqrt(n @ n)
@@ -46,6 +59,12 @@ def sidm_scatter(pos, vel, mass, dt, sigma_over_m, h, rng):
             vel[j] = vcm - 0.5 * vrel * n
             scattered[i] = scattered[j] = True
             n_sc += 1
+    if diag is not None:
+        diag['P_max'] = float(_pmax)
+        diag['kappa'] = float(2.0*_psum/len(pos))      # expected scatters per particle per step
+        diag['n_scatter'] = int(n_sc)
+        diag['n_pairs'] = int(len(pairs))
+        diag['blocked_frac'] = float(_blocked/max(len(pairs), 1))
     return vel, n_sc
 
 

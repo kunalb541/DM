@@ -1,3 +1,37 @@
+> **STATUS: CANONICAL PLAN.**
+> Near-term paper = the SIDM anisotropy result below. `PAPER_PLAN.md` (causal fingerprints)
+> is FUTURE WORK until its F3 battery has seeded error bars.
+
+## Near-term paper (canonical)
+**"A matched-intervention test of velocity anisotropy in SIDM gravothermal collapse"**
+
+**Thesis.** Kamionkowski & Sigurdson (2025) report >2x variation in SIDM gravothermal collapse
+time with anisotropic velocity distributions, from a 1D spherically-symmetric solver. We apply a
+3D matched-pair causal intervention that changes velocity **direction** while holding the density
+field, positions, and per-particle speeds fixed (KE to O(1e-4)). This isolates *anisotropy* from
+the distribution-function and sigma-profile changes that co-vary in self-consistent anisotropic ICs.
+
+**Scope — deliberately narrow.** We test whether **INITIAL** anisotropy causally changes collapse
+time. We do **not** claim to hold anisotropy fixed during collapse: we measure that it is erased
+fast (~1 crossing time by phase mixing for a rotated IC; ~20 steps by scattering for an equilibrium
+OM IC), and t_iso/t_collapse ~ 0.005-0.019 across sigma/m = 5-80. **That erasure timescale is a
+RESULT, reported prominently — not a nuisance.** It is also common to the 1D work (their
+t_scat ~ 110 Myr vs ~16 Gyr collapse), so any anisotropy effect must be an EARLY IMPRINT on the
+density/energy structure rather than a sustained state.
+
+**Novelty claim.** NOT "anisotropy matters" (known). The claim is: *a matched causal intervention
+isolates the anisotropy/orbit-channel effect from distribution-function and sigma-profile confounds*,
+and bounds it in 3D.
+
+**Target:** MNRAS main journal.
+
+**BLOCKING GATE:** no production compute until the SIDM dt-convergence test passes (see
+`fleet/conv_cell.py`). If t_collapse or the rho trajectory shifts >10-15% between dt=0.005 and
+dt=0.00125, all existing SIDM claims become calibration-only and must be rerun with smaller dt or
+subcycling before Phase 1.
+
+---
+
 # Paper plan + full-scale AWS plan (for external review)
 
 Every number below is traceable to a measurement in this repo. Provenance is given as
@@ -32,10 +66,10 @@ reframing a known degeneracy as a *measurable observer-relative residual*:
 | effect | magnitude | script |
 |---|---|---|
 | inner slope γ depends on tracer orbit class (circularity split) | **Δγ = 0.24** | `dmlab observer_gamma` |
-| inferred triaxiality depends on tracer orbit class | **Δ(c/a) = 0.44** | `shape_observer.py` |
+| inferred triaxiality depends on tracer orbit class | **Δ(c/a) = 0.44** | `dmlab run shape_observer` |
 | stream-inferred shape is orbit-family biased | in-plane b/a **0.71→0.90** for the same halo | `dmlab stream_shape` |
 | β-blind Jeans observer invents mass | **+37% → +184%** as β 0.28→0.80; isotropic control ≈0 | `dmlab dm_residual` |
-| observer-resolution scale-flow | ~10% (sub-dominant axis) | `dm_scaleflow.py` |
+| observer-resolution scale-flow | ~10% (sub-dominant axis) | `dmlab run scale_flow` |
 
 **Honest framing (this is what fixes the two prior rejections):** we are NOT claiming to discover
 the mass–anisotropy degeneracy (Binney; Wolf+2010) or finite-resolution Jeans bias. The

@@ -225,12 +225,14 @@ def make_force(law, cfg, mass, a0=1.0, r_sf=0.5):
     raise ValueError(law)
 
 def evolve(pos, vel, cfg, mass, steps, law='newton', dt=DT_DEF, a0=1.0, r_sf=0.5,
-           sigma_over_m=0.0, h=0.10, rng=None, feedback_amp=0.0, r_gas=0.10, T_osc=120):
+           sigma_over_m=0.0, h=0.10, rng=None, feedback_amp=0.0, r_gas=0.10, T_osc=120,
+           sidm_diag=None):
     """Unified leapfrog KDK. Optional SIDM scattering and/or oscillating-central-gas feedback."""
     accel = make_force(law, cfg, mass, a0, r_sf)
     from sidm import sidm_scatter
     rng = rng or np.random.default_rng(7)
     p, v = pos.copy(), vel.copy(); a = accel(p); n_scat = 0
+    if sidm_diag is None: sidm_diag = {}
     for s in range(steps):
         if feedback_amp:
             Mg = feedback_amp*(0.5 - 0.5*math.cos(2*math.pi*s/T_osc))
@@ -238,7 +240,12 @@ def evolve(pos, vel, cfg, mass, steps, law='newton', dt=DT_DEF, a0=1.0, r_sf=0.5
             a = a - Mg*dx/rr2**1.5
         v = v + 0.5*dt*a; p = p + dt*v; a = accel(p); v = v + 0.5*dt*a
         if sigma_over_m > 0:                      # sidm_scatter always returns (vel, n_scattered)
-            v, ns = sidm_scatter(p, v, mass, dt, sigma_over_m, h, rng); n_scat += ns
+            _d = {}
+            v, ns = sidm_scatter(p, v, mass, dt, sigma_over_m, h, rng, diag=_d); n_scat += ns
+            for k in ('P_max','kappa','blocked_frac'):
+                sidm_diag[k] = max(sidm_diag.get(k, 0.0), _d.get(k, 0.0))
+            sidm_diag['n_scatter_total'] = sidm_diag.get('n_scatter_total', 0) + ns
+            sidm_diag['n_pairs'] = _d.get('n_pairs', 0)
     return p, v
 
 
@@ -452,7 +459,91 @@ def exp_sidm_collapse(N=4000, steps=4000, sigma_over_m=50.0, arm='none', dose=0.
               f"t_iso/t_col={ratio:.2f}  c/a={cas[-1]:.3f}")
     return {'arm': arm, 'dose': dose, 'sigma_over_m': sigma_over_m, 'runs': out}
 
+
+def exp_fingerprints(N=5000, steps=600, seeds=(1,2,3), theta=0.8, **kw):
+    """PAPER F3: do orbit / SIDM / feedback occupy SEPARABLE loci in the (df_peri, dgamma) plane?
+
+    Each arm is measured against its OWN matched sham, so the non-equilibrium common mode cancels.
+    Ported from the archived collapse_test.py, now with seeds -> error bars (the gap the review flagged).
+    """
+    cfg = cfg_for(N); mass = 1.0/N; out = {}
+    def measure(vel0, pos, evolve_kw, sham_seed):
+        pr, vr = evolve(pos, vel0, cfg, mass, steps, **evolve_kw)
+        return gamma(pr), f_peri(pr, vr)
+    for sd in seeds:
+        pos, vel0 = sample(N, sd, kind='nfw3d')
+        g_s, f_s = measure(sham(pos, vel0, theta, seed=sd*100+11), pos, dict(law='newton'), sd)
+        arms = {}
+        for th in (0.4, theta):
+            arms[f'radial{th}'] = (radialize(pos, vel0, th), dict(law='newton'))
+            arms[f'tang{th}']   = (tangentialize(pos, vel0, th, seed=sd*7+3), dict(law='newton'))
+        for som in (10.0, 40.0, 100.0):
+            arms[f'sidm{som:.0f}'] = (vel0, dict(law='newton', sigma_over_m=som,
+                                                 rng=np.random.default_rng(sd*13+5)))
+        for amp in (0.1, 0.2, 0.4):
+            arms[f'fb{amp}'] = (vel0, dict(law='newton', feedback_amp=amp))
+        for name, (v, ek) in arms.items():
+            g, f = measure(v, pos, ek, sd)
+            out.setdefault(name, []).append((g - g_s, f - f_s))
+    print(f"  {'arm':>10} {'dgamma (mean+/-sd)':>22} {'df_peri (mean+/-sd)':>22}")
+    res = {}
+    for name, v in out.items():
+        a = np.array(v); m, s = a.mean(axis=0), (a.std(axis=0, ddof=1) if len(a) > 1 else np.zeros(2))
+        res[name] = dict(dgamma=(float(m[0]), float(s[0])), dfperi=(float(m[1]), float(s[1])))
+        print(f"  {name:>10} {m[0]:+10.3f} +/- {s[0]:<7.3f} {m[1]:+10.3f} +/- {s[1]:<7.3f}")
+    return res
+
+def exp_scale_flow(N=400000, seed=1, **kw):
+    """Does inferred DM flow with the OBSERVER's radial resolution lambda? (ported dm_scaleflow.py)
+
+    Non-circular: sweep the observer's gradient resolution, do NOT smooth the truth (which conserves
+    mass and trivially gives zero).
+    """
+    pos, vel = sample(N, seed, kind='isotropic')
+    FE = np.logspace(np.log10(0.04), np.log10(0.9), 60)
+    rc, rho, sr2, _, _ = beta_sigma_profiles(pos, vel, FE)
+    cf = np.polyfit(np.log(rc), np.log(rho*sr2), 5)          # smooth to isolate curvature from shot noise
+    cs = np.polyfit(np.log(rc), np.log(sr2), 4)
+    lnP = lambda x: np.polyval(cf, np.log(x))
+    s2 = lambda x: np.exp(np.polyval(cs, np.log(x)))
+    r = np.linalg.norm(pos - CEN, axis=1); order = np.sort(r)
+    Mtrue = lambda x: np.searchsorted(order, x)/N
+    def M_inf(rr, lam):
+        a, b = rr-lam/2, rr+lam/2
+        if a <= rc[0] or b >= rc[-1]: return float('nan')
+        return -(rr*s2(rr))*((lnP(b)-lnP(a))/(np.log(b)-np.log(a)))
+    LAMS = [0.03, 0.06, 0.12, 0.24]; out = {}
+    print(f"  {'r':>6} " + " ".join(f"lam={l:<5}" for l in LAMS) + "   (flow vs finest observer)")
+    for rr in (0.15, 0.20, 0.30, 0.40):
+        m0 = M_inf(rr, LAMS[0]); row = [M_inf(rr, l)/m0 - 1 if m0 == m0 else float('nan') for l in LAMS]
+        out[rr] = row
+        print(f"  {rr:6.2f} " + " ".join(f"{100*v:+6.0f}%" if v == v else "   -   " for v in row))
+    peak = max(abs(v) for row in out.values() for v in row[1:] if v == v)
+    print(f"  peak scale-flow = {100*peak:.0f}%  (vs velocity-access residual of 37-184%)")
+    return {'flow': out, 'peak': float(peak)}
+
+def exp_shape_observer(N=20000, steps=1500, r_a=0.10, seed=1, **kw):
+    """Is inferred SHAPE observer-dependent by tracer orbit class? (ported shape_observer.py)
+
+    Drives a radial-orbit-unstable halo triaxial, then splits by circularity assigned at t=0.
+    """
+    cfg = cfg_for(N); mass = 1.0/N
+    pos0, vel0 = sample(N, seed, kind='radial', r_a=r_a)
+    eta = circularity(pos0, vel0)
+    radial, tang = eta <= 0.4, eta >= 0.75
+    ca0, _ = axis_ratios(pos0, rmax=0.5)
+    pf, _ = evolve(pos0, vel0, cfg, mass, steps, 'newton')
+    caf, _ = axis_ratios(pf, rmax=0.5)
+    car, _ = axis_ratios(pf[radial], rmax=0.5); cat, _ = axis_ratios(pf[tang], rmax=0.5)
+    print(f"  global c/a: {ca0:.3f} -> {caf:.3f}  (triaxiality developed?)")
+    print(f"  radial tracers c/a={car:.3f} | tangential c/a={cat:.3f} | Delta={car-cat:+.3f}")
+    return {'ca_global': (float(ca0), float(caf)), 'ca_radial': float(car),
+            'ca_tang': float(cat), 'delta': float(car-cat)}
+
 EXPERIMENTS = {
+    'fingerprints':        exp_fingerprints,
+    'scale_flow':          exp_scale_flow,
+    'shape_observer':      exp_shape_observer,
     'sidm_collapse':       exp_sidm_collapse,
     'observer_gamma':      exp_observer_gamma,
     'kerr_losscone':       exp_kerr_losscone,
