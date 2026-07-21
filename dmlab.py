@@ -23,7 +23,12 @@ from nbody_dm_ic import sample_nfw3d
 from nfw_anisotropic_ic import sample_nfw_anisotropic
 
 CEN = np.full(3, 1.0)          # halo centre (box_size=2.0)
-KAPPA_TARGET = 0.02            # max scatters/particle per SIDM sub-step (K&S accuracy criterion)
+KAPPA_TARGET = 0.0143          # max scatters/particle per SIDM sub-step.
+# NOTE: sidm_scatter's recorded kappa UNDERCOUNTS by a factor 0.716 (it accumulates P only
+# over pairs it evaluates, skipping blocked ones). The K&S criterion is <=0.02 on the TRUE
+# value, so the target applied here must be 0.02*0.716 = 0.0143. With the old 0.02 target the
+# true kappa landed at 0.02/0.716 = 0.0279 -- confirmed at 0.0270-0.0273 across every conv5
+# cell, i.e. `auto` was systematically under-sub-cycling by 40%.
 RS_DEF, C_DEF, EPS_DEF, DT_DEF = 0.20, 10.0, 0.05, 0.005
 
 
