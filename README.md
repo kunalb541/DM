@@ -1,5 +1,10 @@
 # DM — causal N-body experiments on dark-matter halo structure
 
+> ⛔ **Read [`VALIDITY.md`](VALIDITY.md) before quoting any result.** All 93 pre-sub-cycling
+> SIDM results are **invalid for paper claims** (scattering under-resolved: kappa ~7x the
+> accuracy criterion, ~52% of candidate scatters suppressed). Pure-gravity and non-SIDM
+> results are unaffected. `analysis.py` excludes the invalid files by default.
+
 Idealised, collisionless-primary N-body with **matched-pair causal interventions** and exact ground
 truth. The distinguishing instrument is a speed-preserving velocity rotation that holds positions
 and (to O(1e-4)) kinetic energy and virial ratio fixed, so orbit structure can be *intervened on*
