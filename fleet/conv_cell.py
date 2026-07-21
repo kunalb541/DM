@@ -18,6 +18,23 @@ b0 = D.mean_beta(pos, vel)
 rng = np.random.default_rng(seed*13+5); diag = {}
 p, v = pos.copy(), vel.copy()
 ts, rcs, bets = [], [], []
+import subprocess
+BUCKET = os.environ.get('DMLAB_BUCKET', 'nbody-fleet-506250255800-eu-central-1')
+RUNID  = os.environ.get('DMLAB_RUN', 'conv5')
+def _partial(ts, rc, bet, done):
+    """Upload progress so far. Without this, a backstop shutdown loses the ENTIRE run --
+    which is exactly what killed conv4 after ~3h of compute."""
+    rec = dict(tag=tag, N=N, dt=dt, sigma=sig, seed=seed, steps_done=done, steps_target=steps,
+               partial=True, sidm_subcycles_used=diag.get('sidm_subcycles_used'),
+               kappa_full_step=diag.get('kappa_full_step'), P_max=diag.get('P_max'),
+               kappa_max=diag.get('kappa'), blocked_frac=diag.get('blocked_frac'),
+               n_scatter_total=diag.get('n_scatter_total'), beta_i=b0,
+               t_series=ts, rho_series=rc, beta_series=bet)
+    open(f'/tmp/{tag}.partial.json','w').write(json.dumps(rec))
+    subprocess.run(['aws','s3','cp',f'/tmp/{tag}.partial.json',
+                    f's3://{BUCKET}/results/{RUNID}/{tag}.partial.json','--region','eu-central-1',
+                    '--only-show-errors'], check=False)
+
 for k in range(0, steps, snap):
     p, v = D.evolve(p, v, cfg, mass, snap, 'newton', dt=dt, sigma_over_m=sig, rng=rng, sidm_diag=diag,
                     sidm_subcycles=NSUB)
@@ -25,6 +42,8 @@ for k in range(0, steps, snap):
     ts.append((k+snap)*dt)                     # PHYSICAL time, comparable across dt
     rcs.append(float((r < 0.12).sum())/N/(4/3*np.pi*0.12**3))
     bets.append(D.mean_beta(p, v))
+    if (k//snap) % 10 == 9:                     # checkpoint to S3 every 10 snapshots
+        _partial([(kk+snap)*dt for kk in range(0, k+1, snap)], rcs, bets, k+snap)
 ts = np.array(ts); rc = np.array(rcs); bet = np.array(bets)
 def tcol(K):
     j = np.where(rc >= K*rc[0])[0]
