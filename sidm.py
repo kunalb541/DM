@@ -41,30 +41,48 @@ def sidm_scatter(pos, vel, mass, dt, sigma_over_m, h, rng, diag=None):
     rho = mass / Vh                             # density contributed by one partner in the kernel
     scattered = np.zeros(len(pos), bool)
     n_sc = 0
-    _pmax = 0.0; _psum = 0.0; _blocked = 0
-    for idx in rng.permutation(len(pairs)):
-        i, j = pairs[idx]
+    _blocked = 0
+
+    # VECTORISED acceptance test.
+    # This is EXACT, not an approximation: in the sequential version any particle whose velocity
+    # changed is flagged `scattered` and skipped for every later pair, so each P that is actually
+    # evaluated always uses the UNMODIFIED velocities. Pre-computing all P from the entry
+    # velocities therefore reproduces the same quantities. Since P ~ 0.02, only ~2% of pairs ever
+    # scatter, so we test all pairs vectorised and then walk only the accepted ones -- preserving
+    # the once-per-step exclusion rule exactly, at ~1/50th the Python-loop length.
+    i_idx = pairs[:, 0]
+    j_idx = pairs[:, 1]
+    dv = vel[i_idx] - vel[j_idx]
+    vrel_all = np.sqrt(np.einsum('ij,ij->i', dv, dv))
+    P_all = sigma_over_m * rho * vrel_all * dt
+    _pmax = float(P_all.max()) if len(P_all) else 0.0
+    _psum = float(P_all.sum())
+    accept = rng.random(len(pairs)) < P_all
+    cand = np.flatnonzero(accept)
+    rng.shuffle(cand)                      # random order, as in the sequential version
+
+    for idx in cand:
+        i = i_idx[idx]; j = j_idx[idx]
         if scattered[i] or scattered[j]:
             _blocked += 1
             continue
-        dv = vel[i] - vel[j]
-        vrel = np.sqrt(dv @ dv)
-        P = sigma_over_m * rho * vrel * dt
-        if P > _pmax: _pmax = P
-        _psum += P
-        if rng.random() < P:
-            vcm = 0.5 * (vel[i] + vel[j])
-            n = rng.normal(size=3); n /= np.sqrt(n @ n)
-            vel[i] = vcm + 0.5 * vrel * n
-            vel[j] = vcm - 0.5 * vrel * n
-            scattered[i] = scattered[j] = True
-            n_sc += 1
+        vrel = vrel_all[idx]
+        vcm = 0.5 * (vel[i] + vel[j])
+        n = rng.normal(size=3); n /= np.sqrt(n @ n)
+        vel[i] = vcm + 0.5 * vrel * n
+        vel[j] = vcm - 0.5 * vrel * n
+        scattered[i] = scattered[j] = True
+        n_sc += 1
+    # blocked_frac is now reported over ACCEPTED pairs (the ones that could have scattered),
+    # which is the meaningful denominator for the saturation bias.
+    _blocked_den = max(len(cand), 1)
+
     if diag is not None:
         diag['P_max'] = float(_pmax)
         diag['kappa'] = float(2.0*_psum/len(pos))      # expected scatters per particle per step
         diag['n_scatter'] = int(n_sc)
         diag['n_pairs'] = int(len(pairs))
-        diag['blocked_frac'] = float(_blocked/max(len(pairs), 1))
+        diag['blocked_frac'] = float(_blocked/_blocked_den)
     return vel, n_sc
 
 

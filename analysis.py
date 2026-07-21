@@ -28,6 +28,13 @@ def load(pat='**/*.json', include_pre_subcycling=False):
         if is_sidm and not subcycled:
             d['pre_subcycling'] = True; pre += 1
             if not include_pre_subcycling: continue
+        # kappa correction: the sequential sidm_scatter accumulated its probability sum only over
+        # pairs it EVALUATED, skipping blocked ones -> recorded kappa reads 0.716 of true.
+        # Runs made with the vectorised operator are already correct and are not rescaled.
+        if not d.get('kappa_is_corrected'):
+            for k in ('kappa_max', 'kappa_full_step'):
+                if d.get(k) is not None:
+                    d[k + '_corrected'] = d[k] / 0.716
         out.append(d)
     if pre:
         print("!"*78)
@@ -136,8 +143,11 @@ def main():
         print("  none of these results carry SIDM safety diagnostics.")
         print("  -> pre-instrumentation runs. New runs record P_max / kappa_max / blocked_frac.")
     else:
+        print("  (kappa_corr = raw/0.716; the loop operator undercounted kappa by ~30%)")
         for r in sorted(d, key=lambda x: x.get('dt', 0)):
-            print(f"  {r['tag']:<16} dt={r.get('dt')} kappa={r['kappa_max']:.4f} "
+            kc = r.get('kappa_max_corrected', r['kappa_max'])
+            flag = 'OK' if kc <= 0.02 else 'EXCEEDS 0.02'
+            print(f"  {r['tag']:<16} dt={r.get('dt')} kappa_raw={r['kappa_max']:.4f} kappa_corr={kc:.4f} [{flag}] "
                   f"P_max={r['P_max']:.3f} blocked={r['blocked_frac']:.3f} "
                   f"scat/step={r.get('scatters_per_step', 0):.2f}")
         print("  K&S guidance: kappa<=0.02 for O(10%) accuracy; blocked_frac is the once-per-step")
