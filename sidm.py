@@ -117,3 +117,22 @@ if __name__ == "__main__":
         print(f"{som:8.1f} {nsc:10d}   {m0:.3f} -> {mf:.3f}     {100*(mf-m0)/m0:+7.1f}%  {abs((Ef-E0)/E0):13.2e}")
     print("\nPASS if: sigma/m=0 keeps M(<0.05) ~flat (CDM), and sigma/m>0 REDUCES it (core forms),")
     print("more so at larger sigma/m, with energy drift small. Then SIDM is trustworthy for the scoreboard.")
+
+
+def sidm_kappa(pos, vel, mass, dt, sigma_over_m, h):
+    """Expected scatters per particle for a step of `dt` (= dt/t_scat), WITHOUT scattering.
+
+    Used to choose the number of sub-cycles so that the per-sub-step kappa meets the accuracy
+    criterion (Kamionkowski/Sigurdson: kappa <= 0.02 for O(10%) accuracy). kappa scales with local
+    density and neighbour count, so it MUST be measured per run, not assumed.
+    """
+    import numpy as np
+    from scipy.spatial import cKDTree
+    if sigma_over_m <= 0:
+        return 0.0
+    pairs = cKDTree(pos).query_pairs(h, output_type='ndarray')
+    if len(pairs) == 0:
+        return 0.0
+    rho = mass / ((4.0/3.0) * np.pi * h**3)
+    vrel = np.linalg.norm(vel[pairs[:, 0]] - vel[pairs[:, 1]], axis=1)
+    return float(2.0 * np.sum(sigma_over_m * rho * vrel * dt) / len(pos))

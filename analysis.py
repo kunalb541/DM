@@ -12,12 +12,30 @@ import numpy as np
 
 RES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
 
-def load(pat='**/*.json'):
-    out = []
+def load(pat='**/*.json', include_pre_subcycling=False):
+    """Load results. SIDM runs made BEFORE the scattering operator was sub-cycled are excluded by
+    default: their scattering was under-resolved (kappa ~7x the accuracy criterion, ~52% of
+    candidate scatters suppressed by the once-per-step cap), so they are calibration-only and must
+    NOT be mixed with post-subcycling numbers."""
+    out, pre = [], 0
     for f in glob.glob(os.path.join(RES, pat), recursive=True):
         try:
-            d = json.load(open(f)); d.setdefault('tag', os.path.basename(f)[:-5]); out.append(d)
-        except Exception: pass
+            d = json.load(open(f)); d.setdefault('tag', os.path.basename(f)[:-5])
+        except Exception:
+            continue
+        is_sidm = (d.get('sigma') or d.get('sigma_over_m') or 0) > 0
+        subcycled = d.get('sidm_subcycles_used') or d.get('subcycles')
+        if is_sidm and not subcycled:
+            d['pre_subcycling'] = True; pre += 1
+            if not include_pre_subcycling: continue
+        out.append(d)
+    if pre:
+        print("!"*78)
+        print(f"! WARNING: {pre} PRE-SUBCYCLING SIDM result files present"
+              f"{' (INCLUDED)' if include_pre_subcycling else ' (EXCLUDED)'}.")
+        print("! Their scattering was under-resolved -- calibration-only, not valid for the paper.")
+        print("! Rerun them with the sub-cycled operator before quoting any SIDM number.")
+        print("!"*78)
     return out
 
 def tk(r, K=1.5):

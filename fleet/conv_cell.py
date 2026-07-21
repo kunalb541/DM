@@ -7,6 +7,8 @@ import numpy as np, dmlab as D
 
 tag, N, dt, sig, seed, base_steps = sys.argv[1], int(sys.argv[2]), float(sys.argv[3]), \
     float(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6])
+_n = sys.argv[7] if len(sys.argv) > 7 else 'auto'
+NSUB = _n if _n == 'auto' else int(_n)
 steps = int(base_steps * (0.005/dt))          # fixed physical time
 snap  = max(int(20 * (0.005/dt)), 1)          # fixed physical cadence
 cfg = D.cfg_for(N, dt=dt); mass = 1.0/N
@@ -17,7 +19,8 @@ rng = np.random.default_rng(seed*13+5); diag = {}
 p, v = pos.copy(), vel.copy()
 ts, rcs, bets = [], [], []
 for k in range(0, steps, snap):
-    p, v = D.evolve(p, v, cfg, mass, snap, 'newton', dt=dt, sigma_over_m=sig, rng=rng, sidm_diag=diag)
+    p, v = D.evolve(p, v, cfg, mass, snap, 'newton', dt=dt, sigma_over_m=sig, rng=rng, sidm_diag=diag,
+                    sidm_subcycles=NSUB)
     r = np.linalg.norm(p - D.CEN, axis=1)
     ts.append((k+snap)*dt)                     # PHYSICAL time, comparable across dt
     rcs.append(float((r < 0.12).sum())/N/(4/3*np.pi*0.12**3))
@@ -31,6 +34,9 @@ if abs(b0) > 0.05:
     j = np.where(np.abs(bet) <= 0.5*abs(b0))[0]
     if len(j): t_iso = float(ts[j[0]])
 rec = dict(tag=tag, N=N, dt=dt, sigma=sig, seed=seed, steps=steps, beta_i=b0,
+           sidm_subcycles_requested=NSUB, sidm_subcycles_used=diag.get('sidm_subcycles_used'),
+           kappa_full_step=diag.get('kappa_full_step'),
+           blocked_frac_mean=diag.get('blocked_frac_mean'), dt_eff=dt/max(diag.get('sidm_subcycles_used') or 1, 1),
            t_collapse_K13=tcol(1.3), t_collapse_K15=tcol(1.5), t_collapse_K20=tcol(2.0),
            t_iso=t_iso, rho_max=float(rc.max()), rho_final=float(rc[-1]),
            scatters_per_step=diag.get('n_scatter_total', 0)/max(steps, 1),

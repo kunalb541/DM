@@ -23,6 +23,7 @@ from nbody_dm_ic import sample_nfw3d
 from nfw_anisotropic_ic import sample_nfw_anisotropic
 
 CEN = np.full(3, 1.0)          # halo centre (box_size=2.0)
+KAPPA_TARGET = 0.02            # max scatters/particle per SIDM sub-step (K&S accuracy criterion)
 RS_DEF, C_DEF, EPS_DEF, DT_DEF = 0.20, 10.0, 0.05, 0.005
 
 
@@ -226,26 +227,53 @@ def make_force(law, cfg, mass, a0=1.0, r_sf=0.5):
 
 def evolve(pos, vel, cfg, mass, steps, law='newton', dt=DT_DEF, a0=1.0, r_sf=0.5,
            sigma_over_m=0.0, h=0.10, rng=None, feedback_amp=0.0, r_gas=0.10, T_osc=120,
-           sidm_diag=None):
+           sidm_diag=None, sidm_subcycles='auto'):
     """Unified leapfrog KDK. Optional SIDM scattering and/or oscillating-central-gas feedback."""
     accel = make_force(law, cfg, mass, a0, r_sf)
     from sidm import sidm_scatter
     rng = rng or np.random.default_rng(7)
     p, v = pos.copy(), vel.copy(); a = accel(p); n_scat = 0
     if sidm_diag is None: sidm_diag = {}
+    sidm_diag.setdefault('n_scatter_total', 0)
     for s in range(steps):
         if feedback_amp:
             Mg = feedback_amp*(0.5 - 0.5*math.cos(2*math.pi*s/T_osc))
             dx = p - CEN; rr2 = np.sum(dx*dx, axis=1)[:, None] + r_gas**2
             a = a - Mg*dx/rr2**1.5
         v = v + 0.5*dt*a; p = p + dt*v; a = accel(p); v = v + 0.5*dt*a
-        if sigma_over_m > 0:                      # sidm_scatter always returns (vel, n_scattered)
-            _d = {}
-            v, ns = sidm_scatter(p, v, mass, dt, sigma_over_m, h, rng, diag=_d); n_scat += ns
-            for k in ('P_max','kappa','blocked_frac'):
-                sidm_diag[k] = max(sidm_diag.get(k, 0.0), _d.get(k, 0.0))
-            sidm_diag['n_scatter_total'] = sidm_diag.get('n_scatter_total', 0) + ns
-            sidm_diag['n_pairs'] = _d.get('n_pairs', 0)
+        if sigma_over_m > 0:
+            # SUBCYCLED scattering: nsub sub-steps of dt/nsub per GRAVITY step. This both cuts
+            # kappa (and P) proportionally AND gives each sub-step a fresh once-per-step scatter
+            # mask, which is what relieves the saturation bias (blocked_frac). Gravity is NOT
+            # redone -- only the KDTree is rebuilt per sub-step, which is cheap vs the O(N^2) force.
+            if sidm_subcycles == 'auto':
+                # measure kappa for a FULL step, then choose nsub so kappa_sub <= KAPPA_TARGET
+                from sidm import sidm_kappa
+                _k = sidm_kappa(p, v, mass, dt, sigma_over_m, h)
+                nsub = int(max(1, math.ceil(_k / KAPPA_TARGET)))
+                sidm_diag['kappa_full_step'] = max(sidm_diag.get('kappa_full_step', 0.0), _k)
+            else:
+                nsub = max(int(sidm_subcycles), 1)
+            dts = dt/nsub
+            _bf = []
+            for _ in range(nsub):
+                _d = {}
+                v, ns = sidm_scatter(p, v, mass, dts, sigma_over_m, h, rng, diag=_d)
+                n_scat += ns
+                sidm_diag['n_scatter_total'] = sidm_diag.get('n_scatter_total', 0) + ns
+                # per-SUB-STEP safety metrics: these are what must satisfy kappa <= 0.02
+                sidm_diag['P_max'] = max(sidm_diag.get('P_max', 0.0), _d.get('P_max', 0.0))
+                sidm_diag['kappa'] = max(sidm_diag.get('kappa', 0.0), _d.get('kappa', 0.0))
+                _bf.append(_d.get('blocked_frac', 0.0))
+                sidm_diag['n_pairs'] = _d.get('n_pairs', 0)
+            sidm_diag['blocked_frac'] = max(sidm_diag.get('blocked_frac', 0.0), max(_bf))
+            sidm_diag['blocked_frac_mean'] = (
+                (sidm_diag.get('blocked_frac_mean', 0.0)*sidm_diag.get('_nbf', 0) + sum(_bf))
+                / (sidm_diag.get('_nbf', 0) + len(_bf)))
+            sidm_diag['_nbf'] = sidm_diag.get('_nbf', 0) + len(_bf)
+            sidm_diag['sidm_subcycles_requested'] = sidm_subcycles
+            sidm_diag['sidm_subcycles_used'] = max(sidm_diag.get('sidm_subcycles_used', 0), nsub)
+            sidm_diag['subcycles'] = nsub
     return p, v
 
 
@@ -387,7 +415,7 @@ def exp_lyapunov(N=4000, steps=800, delta=1e-5, seeds=(1,), **kw):
     return {'lambda': lam, 'N': N}
 
 def exp_sidm_collapse(N=4000, steps=4000, sigma_over_m=50.0, arm='none', dose=0.0, seeds=(1,),
-                      snap=100, rho_r=0.12, **kw):
+                      snap=100, rho_r=0.12, sidm_subcycles='auto', **kw):
     """CAMPAIGN: does initial anisotropy causally set SIDM gravothermal collapse time in 3D?
 
     arm: none | radial | tang | sham | lnull.  Speed-preserving -> positions, per-particle speed,
@@ -421,11 +449,12 @@ def exp_sidm_collapse(N=4000, steps=4000, sigma_over_m=50.0, arm='none', dose=0.
         elif arm == 'lnull':  vel = l_null(pos, vel0, dose)
         else:                 vel = vel0
         b0 = mean_beta(pos, vel)
-        rng = np.random.default_rng(sd*13+5)
+        rng = np.random.default_rng(sd*13+5); sdiag = {}
         p, v = pos.copy(), vel.copy()
         ts, rcs, cas, bets = [], [], [], []
         for k in range(0, steps, snap):
-            p, v = evolve(p, v, cfg, mass, snap, 'newton', sigma_over_m=sigma_over_m, rng=rng)
+            p, v = evolve(p, v, cfg, mass, snap, 'newton', sigma_over_m=sigma_over_m, rng=rng,
+                          sidm_diag=sdiag, sidm_subcycles=sidm_subcycles)
             r = np.linalg.norm(p - CEN, axis=1)
             ts.append(k+snap)
             rcs.append(float((r < rho_r).sum())/N/(4/3*np.pi*rho_r**3))
@@ -450,6 +479,12 @@ def exp_sidm_collapse(N=4000, steps=4000, sigma_over_m=50.0, arm='none', dose=0.
             j = np.where(np.abs(bet) <= 0.5*abs(b0))[0]
             if len(j): t_iso = float(ts[j[0]])
         out.append(dict(seed=sd, beta_i=b0, beta_f=float(bet[-1]), t_iso=t_iso, t_col_k=t_col_k,
+                        sidm_subcycles_requested=sidm_subcycles,
+                        sidm_subcycles_used=sdiag.get('sidm_subcycles_used'),
+                        kappa_full_step=sdiag.get('kappa_full_step'),
+                        P_max=sdiag.get('P_max'), kappa_max=sdiag.get('kappa'),
+                        blocked_frac=sdiag.get('blocked_frac'), blocked_frac_mean=sdiag.get('blocked_frac_mean'),
+                        n_scatter_total=sdiag.get('n_scatter_total'),
                         rho_min=float(rc_arr[imin]), t_min=float(ts[imin]), t_collapse=t_col,
                         ca_final=float(cas[-1]), beta_series=bet.tolist(), t_series=ts.tolist(),
                         rho_series=rc_arr.tolist()))
